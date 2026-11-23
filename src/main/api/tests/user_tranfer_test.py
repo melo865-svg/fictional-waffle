@@ -4,8 +4,10 @@ from sqlalchemy.orm import Session
 from src.main.api.classes.api_manager import ApiManager
 from src.main.api.db.crud.account_crud import AccountCrudDb
 from src.main.api.db.crud.transaction_crud import TransactionCrudDb
+from src.main.api.generators.model_generator import RandomModelGenerator
 from src.main.api.models.transfer_request import TransferRequest
 from src.main.api.specs.response_specs import ResponseSpecs
+from src.main.api.test_data.negative_test_data import NegativeTestData
 
 
 @pytest.mark.api
@@ -14,7 +16,7 @@ class TestUserTransfer:
         (sender_request, sender_account, sender_deposit),\
         (receiver_request, receiver_account, receiver_deposit) = accounts_with_balance
 
-        transfer_request = TransferRequest(fromAccountId=sender_account.id, toAccountId=receiver_account.id, amount=1500)
+        transfer_request = TransferRequest(fromAccountId=sender_account.id, toAccountId=receiver_account.id, amount=RandomModelGenerator.generate(TransferRequest).amount)
         transfer_response = api_manager.user_steps.transfer(sender_request, transfer_request)
 
         assert transfer_response.fromAccountIdBalance == sender_deposit.balance - transfer_request.amount
@@ -49,7 +51,7 @@ class TestUserTransfer:
         (receiver_request, receiver_account, receiver_deposit) = accounts_with_balance
 
 
-        transfer_request = TransferRequest(fromAccountId=sender_account.id, toAccountId=receiver_account.id, amount=499)
+        transfer_request = TransferRequest(fromAccountId=sender_account.id, toAccountId=receiver_account.id, amount=NegativeTestData.below_min(TransferRequest, "amount"))
         api_manager.user_steps.transfer_invalid(sender_request, transfer_request, ResponseSpecs.request_bad())
 
         transaction_from_db = TransactionCrudDb.get_transaction_by_sender(

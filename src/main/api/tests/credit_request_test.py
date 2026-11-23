@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 from src.main.api.classes.api_manager import ApiManager
 from src.main.api.db.crud.account_crud import AccountCrudDb
 from src.main.api.db.crud.transaction_crud import TransactionCrudDb
+from src.main.api.generators.model_generator import RandomModelGenerator
 from src.main.api.models.create_user_request import CreateCreditUserRequest, CreateUserRequest
 from src.main.api.models.credit_request import CreditRequest
 from src.main.api.specs.response_specs import ResponseSpecs
@@ -12,12 +13,10 @@ from src.main.api.specs.response_specs import ResponseSpecs
 @pytest.mark.api
 class TestCreditRequest:
     def test_credit_request(self, db_session: Session, api_manager: ApiManager, create_credit_user_request: CreateCreditUserRequest, user_with_credit_account):
-        initial_balance = user_with_credit_account.balance
-
-        credit_request = CreditRequest(accountId=user_with_credit_account.id, amount=5000, termMonths=12)
+        credit_request = RandomModelGenerator.generate(CreditRequest, accountId=user_with_credit_account.id)
         response = api_manager.user_steps.credit(create_credit_user_request, credit_request)
 
-        assert response.balance == initial_balance + 5000
+        assert response.balance == user_with_credit_account.balance + credit_request.amount, 'Баланс отличается от ожидаемого, ошибка!'
 
         transaction_from_db = TransactionCrudDb.get_transaction_by_receiver(
             db_session,
@@ -26,17 +25,16 @@ class TestCreditRequest:
             amount = credit_request.amount
         )
         assert transaction_from_db is not None, 'Кредит не создан, ошибка!'
-        assert transaction_from_db.amount == response.amount
+        assert transaction_from_db.amount == response.amount, 'Размер кредита в базе данных отличается от запрошенного, ошибка!'
 
         account_from_db = AccountCrudDb.get_account_by_id(db_session, account_id = user_with_credit_account.id)
         assert account_from_db is not None, 'Счет не найден, Ошибка!'
-        assert account_from_db.balance == response.balance
+        assert account_from_db.balance == response.balance, 'Баланс в базе данных отличается от ожидаемого, ошибка!'
 
 
 
     def test_credit_request_invalid(self, db_session: Session, api_manager: ApiManager, create_user_request: CreateUserRequest, user_with_account):
-        initial_balance = user_with_account.balance
-        credit_request = CreditRequest(accountId=user_with_account.id, amount=5000, termMonths=12)
+        credit_request = RandomModelGenerator.generate(CreditRequest, accountId=user_with_account.id)
         api_manager.user_steps.credit_invalid(create_user_request, credit_request, ResponseSpecs.request_forbidden())
 
         transaction_from_db = TransactionCrudDb.get_transaction_by_receiver(
@@ -49,7 +47,7 @@ class TestCreditRequest:
 
         account_from_db = AccountCrudDb.get_account_by_id(db_session, account_id=user_with_account.id)
         assert account_from_db is not None, 'Счет не найден, Ошибка!'
-        assert account_from_db.balance == initial_balance
+        assert account_from_db.balance == user_with_account.balance, 'Баланс отличается от ожидаемого, ошибка!'
 
 
 

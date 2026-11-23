@@ -7,27 +7,15 @@ import rstr
 
 class RandomModelGenerator:
     @staticmethod
-    def generate(cls: type) -> Any:
+    def generate(cls: type, **overrides) -> Any:
         type_hints = get_type_hints(cls, include_extras=True)
         init_data = {}
 
-        for field_name, annotated_type in type_hints.items():
-            rule = None
-            actual_type = annotated_type()
-
-            if get_origin(annotated_type) is Annotated:
-                actual_type, *annotations = get_args(annotated_type)
-                for ann in annotations:
-                    from src.main.api.generators.creation_rule import CreationRule
-                    if isinstance(ann, CreationRule):
-                        rule = ann
-
-            if rule:
-                value = RandomModelGenerator._generate_from_regex(rule.regex, actual_type)
+        for field_name in type_hints:
+            if field_name in overrides:
+                init_data[field_name] = overrides[field_name]
             else:
-                value = RandomModelGenerator._generate_value(actual_type)
-
-            init_data[field_name] = value
+                init_data[field_name] = RandomModelGenerator.generate_field(cls, field_name)
 
         return cls(**init_data)
 
@@ -55,3 +43,32 @@ class RandomModelGenerator:
         elif isinstance(field_type, type):
             return RandomModelGenerator.generate(field_type)
         return None
+
+    @staticmethod
+    def generate_field(cls: type, field_name: str) -> Any:
+        type_hints = get_type_hints(cls, include_extras=True)
+        annotated_type = type_hints[field_name]
+
+        rule = None
+        actual_type = annotated_type
+
+        if get_origin(annotated_type) is Annotated:
+            actual_type, *annotations = get_args(annotated_type)
+
+            for ann in annotations:
+                from src.main.api.generators.creation_rule import CreationRule
+                if isinstance(ann, CreationRule):
+                    rule = ann
+
+        if rule and rule.regex:
+            return RandomModelGenerator._generate_from_regex(rule.regex, actual_type)
+
+        if rule and rule.min_value is not None and rule.max_value is not None:
+            if actual_type is int:
+                return random.randint(rule.min_value, rule.max_value)
+            elif actual_type is float:
+                return round(random.uniform(rule.min_value, rule.max_value), 2)
+
+            raise TypeError(f"Unsupported type for range generation: {actual_type}")
+
+        return RandomModelGenerator._generate_value(actual_type)

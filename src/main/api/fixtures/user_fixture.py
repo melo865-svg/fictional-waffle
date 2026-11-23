@@ -57,15 +57,20 @@ def accounts_with_balance(api_manager):
 
 @pytest.fixture
 def user_with_active_credit(api_manager, user_with_credit_account, create_credit_user_request):
-    credit_request = CreditRequest(accountId=user_with_credit_account.id, amount=5000, termMonths=12)
+    credit_request = RandomModelGenerator.generate(CreditRequest, accountId=user_with_credit_account.id)
     return api_manager.user_steps.credit(create_credit_user_request, credit_request)
+
+
+
 
 @pytest.fixture
 def user_with_balance_and_payed_credit(api_manager, user_with_active_credit, user_with_credit_account, create_credit_user_request):
     credit_repay_request = CreditRepayRequest(creditId=user_with_active_credit.creditId, accountId=user_with_credit_account.id, amount=user_with_active_credit.amount)
-    deposit_request = DepositRequest(accountId=user_with_credit_account.id, amount=5000)
+    deposit_request = DepositRequest(accountId=user_with_credit_account.id, amount=min(user_with_active_credit.amount, 9000))
     api_manager.user_steps.deposit(create_credit_user_request, deposit_request)
+
+    if user_with_active_credit.amount > deposit_request.amount:
+        deposit_request_1 = DepositRequest(accountId=user_with_credit_account.id, amount=user_with_active_credit.amount - deposit_request.amount)
+        api_manager.user_steps.deposit(create_credit_user_request, deposit_request_1)
+
     return api_manager.user_steps.credit_repay(create_credit_user_request, credit_repay_request)
-
-
-

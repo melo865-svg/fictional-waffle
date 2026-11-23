@@ -12,7 +12,6 @@ from src.main.api.specs.response_specs import ResponseSpecs
 @pytest.mark.api
 class TestCreditRepay:
     def test_credit_repay(self, db_session: Session, api_manager: ApiManager, create_credit_user_request: CreateCreditUserRequest, user_with_active_credit):
-        initial_balance = user_with_active_credit.balance
         credit_repay_request = CreditRepayRequest(creditId=user_with_active_credit.creditId, accountId=user_with_active_credit.id, amount=user_with_active_credit.amount)
         response = api_manager.user_steps.credit_repay(create_credit_user_request, credit_repay_request)
 
@@ -26,19 +25,17 @@ class TestCreditRepay:
         )
 
         assert transaction_from_db is not None, 'Выплата не обнаружена, Ошибка'
-        assert transaction_from_db.to_account_id == user_with_active_credit.id
+        assert transaction_from_db.to_account_id == user_with_active_credit.id, 'Id пользователя не совпадают, ошибка!'
 
         account_from_db = AccountCrudDb.get_account_by_id(db_session, account_id=user_with_active_credit.id)
 
         assert account_from_db is not None, 'Счет не обнаружен, ошибка'
-        assert account_from_db.balance == initial_balance - credit_repay_request.amount
+        assert account_from_db.balance == user_with_active_credit.balance - credit_repay_request.amount, 'Баланс в базе данных отличается от ожидаемого, ошибка!'
 
     def test_credit_repay_invalid(self, db_session: Session, api_manager: ApiManager, create_credit_user_request: CreateCreditUserRequest, user_with_credit_account, user_with_active_credit, user_with_balance_and_payed_credit):
 
         account_from_db = AccountCrudDb.get_account_by_id(db_session, account_id=user_with_credit_account.id)
         assert account_from_db is not None, 'Счет не обнаружен, ошибка!'
-
-        initial_balance = account_from_db.balance
 
         transactions_before = TransactionCrudDb.get_transactions_by_receiver(db_session, user_with_credit_account.id)
 
@@ -49,8 +46,8 @@ class TestCreditRepay:
 
         db_session.refresh(account_from_db)
 
-        assert len(transactions_before) == len(transactions_after)
-        assert account_from_db.balance == initial_balance
+        assert len(transactions_before) == len(transactions_after), 'Обнаружены новые транзакции, ошибка!'
+        assert account_from_db.balance == user_with_active_credit.balance, 'Баланс в базе данных отличается от ожидаемого, ошибка!'
 
 
 
